@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from email import message_from_bytes
 import base64
 from typing import cast
@@ -9,7 +10,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+import joblib
+    
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
 
 def auth():
     creds = None
@@ -34,8 +37,10 @@ def fetch_latest_emails(service, max_results = 10):
     messages = results.get('messages',[])
     
     mail_texts = []
+    msg_ids=[]
     
     for msg in messages:
+        msg_id = msg['id']
         msg_data = service.users().messages().get(userId = 'me', id = msg['id'], format='raw').execute()
         raw_data = base64.urlsafe_b64decode(msg_data['raw'].encode("ASCII"))
         mail_msg = message_from_bytes(raw_data)
@@ -54,12 +59,46 @@ def fetch_latest_emails(service, max_results = 10):
             
         clean_text = subject + " " + body
         mail_texts.append(clean_text)
+        msg_ids.append(msg_id)
         
-    return mail_texts
+    return mail_texts, msg_ids
+
+def move_to_spam(service, msg_id):
+    service.users().messages().modify(
+        userId='me',
+        id=msg_id,
+        body={
+            'addLabelIds': ['SPAM'],
+            'removeLabelIds': ['INBOX']
+        }
+    ).execute()
+
         
 if __name__ == '__main__':
     service = auth()
-    emails = fetch_latest_emails(service, max_results=10)
+    emails, msg_ids = fetch_latest_emails(service, max_results=10)
+
+    def clean_email_text(text):
+        text = text.lower()  
+        text = re.sub(r'\n', ' ', text)  
+        text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)  
+        text = re.sub(r'\W', ' ', text)  
+        text = re.sub(r'\s+', ' ', text).strip()  
+        return text
+
+    preprocessed_emails = [clean_email_text(email) for email in emails]
+
+    model = joblib.load("spam_model.pkl")
+    vectorizer = joblib.load("vectorizer.pkl")
     
-    for i, email in enumerate(emails,1):
-        print(f"\n📧 Email #{i}:\n{'-'*40}\n{email[:500]}...\n")
+    mails_X = vectorizer.transform(preprocessed_emails)
+    predictions = model.predict(mails_X)
+    
+    for i, (label, msg_id) in enumerate(zip(predictions, msg_ids), 1):
+        tag = "SPAM" if label else "NOT SPAM"
+        print(f"\n📧 Email #{i} - {tag}")
+        print("-" * 40)
+        print(emails[i-1][:500] + "...\n")
+
+        if label == 1:
+            move_to_spam(service, msg_id)
