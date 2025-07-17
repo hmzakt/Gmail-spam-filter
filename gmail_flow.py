@@ -72,33 +72,16 @@ def move_to_spam(service, msg_id):
             'removeLabelIds': ['INBOX']
         }
     ).execute()
-
         
-if __name__ == '__main__':
-    service = auth()
-    emails, msg_ids = fetch_latest_emails(service, max_results=10)
+def clean_email_text(text):
+    if isinstance(text, list):
+        text = " ".join(map(str, text))  # join list into string
+    text = text.lower()
+    text = re.sub(r'\n', ' ', text)
+    text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)
+    text = re.sub(r'\W', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
-    def clean_email_text(text):
-        text = text.lower()  
-        text = re.sub(r'\n', ' ', text)  
-        text = re.sub(r"http\S+|www\S+|https\S+", '', text, flags=re.MULTILINE)  
-        text = re.sub(r'\W', ' ', text)  
-        text = re.sub(r'\s+', ' ', text).strip()  
-        return text
 
-    preprocessed_emails = [clean_email_text(email) for email in emails]
 
-    model = joblib.load("spam_model.pkl")
-    vectorizer = joblib.load("vectorizer.pkl")
-    
-    mails_X = vectorizer.transform(preprocessed_emails)
-    predictions = model.predict(mails_X)
-    
-    for i, (label, msg_id) in enumerate(zip(predictions, msg_ids), 1):
-        tag = "SPAM" if label else "NOT SPAM"
-        print(f"\nEmail #{i} - {tag}")
-        print("-" * 40)
-        print(emails[i-1][:500] + "...\n")
-
-        if label == 1:
-            move_to_spam(service, msg_id)
