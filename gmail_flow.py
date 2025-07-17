@@ -96,7 +96,7 @@ if __name__ == '__main__':
     
     for i, (label, msg_id) in enumerate(zip(predictions, msg_ids), 1):
         tag = "SPAM" if label else "NOT SPAM"
-        print(f"\n📧 Email #{i} - {tag}")
+        print(f"\nEmail #{i} - {tag}")
         print("-" * 40)
         print(emails[i-1][:500] + "...\n")
 
