@@ -25,7 +25,7 @@ A simple yet powerful **ML-powered Gmail Spam Filter** that classifies your late
 | Component     | Tech                        |
 |---------------|-----------------------------|
 | Backend       | Flask, Gmail API, Joblib    |
-| ML Model      | Naive Bayes (scikit-learn)  |
+| ML Model      | scikit-learn                |
 | Data Cleaning | Custom regex preprocessing  |
 | Deployment    | Localhost (demo)            |
 
